@@ -39,7 +39,12 @@ async function postAction(ruta, actionId, campos) {
   const fd = new FormData();
   fd.set(actionId, "");
   for (const [k, v] of Object.entries(campos)) fd.set(k, String(v));
-  const res = await fetch(BASE + ruta, { method: "POST", body: fd });
+  // En producción Next.js rechaza las Server Actions sin cabecera Origin.
+  const res = await fetch(BASE + ruta, {
+    method: "POST",
+    body: fd,
+    headers: { Origin: new URL(BASE).origin },
+  });
   if (!res.ok) throw new Error(`POST ${ruta} -> ${res.status}`);
   await res.text();
 }
