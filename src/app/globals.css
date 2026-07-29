@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --color-lienzo: #f6f7f9;
+  --color-panel: #ffffff;
+  --color-borde: #e4e7ec;
+  --color-tinta: #101828;
+  --color-tenue: #667085;
+  --color-marca: #1f5eff;
+  --color-marca-suave: #eef3ff;
+  --color-ok: #0e9f6e;
+  --color-ok-suave: #e6f6f0;
+  --color-alerta: #d92d20;
+  --color-alerta-suave: #fdecea;
+  --color-aviso: #b54708;
+  --color-aviso-suave: #fdf3e7;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background-color: var(--color-lienzo);
+  color: var(--color-tinta);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Números tabulares: las columnas de dinero quedan alineadas. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+}
