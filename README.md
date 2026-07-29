@@ -42,11 +42,25 @@ Se carga el importe total de la factura y se elige el reparto:
 
 Los importes de luz y agua se suman automáticamente al cobro del mes.
 
+## Acceso
+
+La aplicación entera está detrás de una contraseña de administrador. Un
+middleware protege todas las rutas: sin sesión, cualquier página redirige a
+`/login`.
+
+- `ADMIN_PASSWORD` — la contraseña para entrar.
+- `AUTH_SECRET` — clave aleatoria con la que se firma la cookie de sesión.
+
+La sesión es una cookie `httpOnly` firmada con HMAC-SHA256 que dura 30 días; no
+se guarda nada en la base. Para cambiar la contraseña se cambia la variable de
+entorno y se vuelve a desplegar. Si se cambia `AUTH_SECRET`, todas las sesiones
+abiertas se invalidan.
+
 ## Puesta en marcha
 
 ```bash
 npm install
-cp .env.example .env.local   # y completar DATABASE_URL con la cadena de Neon
+cp .env.example .env.local   # completar DATABASE_URL, ADMIN_PASSWORD y AUTH_SECRET
 npm run db:setup             # crea las tablas
 npm run dev                  # http://localhost:3000
 ```
@@ -81,9 +95,17 @@ todo lo que crea.
 ## Deploy en Vercel
 
 1. Importar el repositorio en Vercel (detecta Next.js solo).
-2. En **Settings → Environment Variables** agregar `DATABASE_URL` con la cadena
-   de conexión de Neon, para los entornos Production, Preview y Development.
+2. En **Settings → Environment Variables** agregar `DATABASE_URL`, `ADMIN_PASSWORD`
+   y `AUTH_SECRET` para los entornos Production, Preview y Development.
 3. Deploy.
+
+Desde el CLI, ojo con dos cosas: usá `--value` (no un pipe) y tené en cuenta que
+el entorno Development no acepta variables sensibles, así que va aparte:
+
+```bash
+vercel env add ADMIN_PASSWORD production,preview --value "..." --force --yes
+vercel env add ADMIN_PASSWORD development --value "..." --no-sensitive --force --yes
+```
 
 > `.env.local` está en `.gitignore`: la contraseña de la base nunca se sube al repo.
 
@@ -94,12 +116,16 @@ db/schema.sql          Esquema de la base
 scripts/db-setup.mjs   Aplica el esquema sobre Neon
 scripts/demo.mjs       Carga y borra los datos de ejemplo
 scripts/smoke.mjs      Prueba de humo de punta a punta
+src/middleware.ts      Exige sesión en todas las rutas menos /login
+src/lib/auth.ts        Firma y validación de la sesión
+src/lib/auth-actions.ts  Entrar y salir
 src/lib/db.ts          Cliente de Neon
 src/lib/format.ts      Formato de importes (Bs), fechas y kWh
 src/lib/queries.ts     Consultas y cálculos (consumo, reparto, saldos)
 src/lib/actions.ts     Server Actions (altas, ediciones, bajas)
 src/components/        Componentes de interfaz
-src/app/               Panel, cobros, luz, agua, inquilinos, propiedades
+src/app/login/         Pantalla de contraseña
+src/app/(app)/         Panel, cobros, luz, agua, inquilinos, propiedades
 ```
 
 Para cambiar la moneda, tocá `SIMBOLO` y `LOCALE` en `src/lib/format.ts`.
