@@ -29,6 +29,8 @@ export type Inquilino = {
   alquiler_vigente: number;
 };
 
+export type RepartoAgua = "partes_iguales" | "manual";
+
 export type Periodo = {
   id: number;
   anio: number;
@@ -38,6 +40,18 @@ export type Periodo = {
   precio_kwh: number | null;
   fecha_factura: string | null;
   notas: string | null;
+  importe_agua: number | null;
+  reparto_agua: RepartoAgua;
+  fecha_factura_agua: string | null;
+};
+
+export type FilaAgua = {
+  inquilino_id: number;
+  inquilino_nombre: string;
+  propiedad_nombre: string | null;
+  importe: number;
+  /** true si el importe lo calculó el reparto en partes iguales. */
+  automatico: boolean;
 };
 
 export type FilaLectura = {
@@ -65,6 +79,7 @@ export type FilaCobro = {
   notas: string | null;
   consumo: number;
   importe_luz: number;
+  importe_agua: number;
   total: number;
   saldo: number;
 };
@@ -127,7 +142,10 @@ export async function getPeriodos(): Promise<Periodo[]> {
            kwh_factura::float8 as kwh_factura,
            precio_kwh::float8 as precio_kwh,
            fecha_factura,
-           notas
+           notas,
+           importe_agua::float8 as importe_agua,
+           reparto_agua,
+           fecha_factura_agua
       from periodos
      order by anio desc, mes desc
   `) as Periodo[];
@@ -142,7 +160,10 @@ export async function getPeriodo(anio: number, mes: number): Promise<Periodo | n
            kwh_factura::float8 as kwh_factura,
            precio_kwh::float8 as precio_kwh,
            fecha_factura,
-           notas
+           notas,
+           importe_agua::float8 as importe_agua,
+           reparto_agua,
+           fecha_factura_agua
       from periodos
      where anio = ${anio} and mes = ${mes}
   `) as Periodo[];
@@ -215,11 +236,47 @@ export async function getLecturas(anio: number, mes: number): Promise<FilaLectur
   });
 }
 
-/** Filas de cobro de un mes: alquiler + luz calculada + extras, contra lo pagado. */
+/**
+ * Reparto del agua del mes. En "partes iguales" se divide la factura entre los
+ * inquilinos activos; en "manual" se usa el importe cargado para cada uno.
+ */
+export async function getAgua(anio: number, mes: number): Promise<FilaAgua[]> {
+  const [periodo, inquilinos] = await Promise.all([
+    getPeriodo(anio, mes),
+    getInquilinos(true),
+  ]);
+
+  const cargados = periodo
+    ? ((await sql`
+        select inquilino_id, importe::float8 as importe
+          from agua_inquilino
+         where periodo_id = ${periodo.id}
+      `) as { inquilino_id: number; importe: number }[])
+    : [];
+
+  const cargadoPorInquilino = new Map(cargados.map((c) => [c.inquilino_id, c.importe]));
+
+  const manual = periodo?.reparto_agua === "manual";
+  const partesIguales =
+    !manual && periodo?.importe_agua && inquilinos.length > 0
+      ? periodo.importe_agua / inquilinos.length
+      : 0;
+
+  return inquilinos.map((inq) => ({
+    inquilino_id: inq.id,
+    inquilino_nombre: inq.nombre,
+    propiedad_nombre: inq.propiedad_nombre,
+    importe: manual ? (cargadoPorInquilino.get(inq.id) ?? 0) : partesIguales,
+    automatico: !manual,
+  }));
+}
+
+/** Filas de cobro de un mes: alquiler + luz + agua + extras, contra lo pagado. */
 export async function getCobros(anio: number, mes: number): Promise<FilaCobro[]> {
-  const [inquilinos, lecturas] = await Promise.all([
+  const [inquilinos, lecturas, agua] = await Promise.all([
     getInquilinos(true),
     getLecturas(anio, mes),
+    getAgua(anio, mes),
   ]);
 
   const pagos = (await sql`
@@ -246,6 +303,7 @@ export async function getCobros(anio: number, mes: number): Promise<FilaCobro[]>
 
   const pagoPorInquilino = new Map(pagos.map((p) => [p.inquilino_id, p]));
   const lecturaPorInquilino = new Map(lecturas.map((l) => [l.inquilino_id, l]));
+  const aguaPorInquilino = new Map(agua.map((a) => [a.inquilino_id, a.importe]));
 
   return inquilinos.map((inq) => {
     const pago = pagoPorInquilino.get(inq.id);
@@ -253,7 +311,8 @@ export async function getCobros(anio: number, mes: number): Promise<FilaCobro[]>
     const montoAlquiler = pago?.monto_alquiler ?? inq.alquiler_vigente;
     const extras = pago?.extras ?? 0;
     const importeLuz = lectura?.importe ?? 0;
-    const total = montoAlquiler + extras + importeLuz;
+    const importeAgua = aguaPorInquilino.get(inq.id) ?? 0;
+    const total = montoAlquiler + extras + importeLuz + importeAgua;
     const pagado = pago?.pagado ?? 0;
 
     return {
@@ -269,6 +328,7 @@ export async function getCobros(anio: number, mes: number): Promise<FilaCobro[]>
       notas: pago?.notas ?? null,
       consumo: lectura?.consumo ?? 0,
       importe_luz: importeLuz,
+      importe_agua: importeAgua,
       total,
       saldo: total - pagado,
     };
@@ -281,10 +341,12 @@ export type ResumenMes = {
   pendiente: number;
   consumoTotal: number;
   importeLuz: number;
+  importeAgua: number;
   inquilinosActivos: number;
   alDia: number;
   precioKwh: number;
-  hayFactura: boolean;
+  hayFacturaLuz: boolean;
+  hayFacturaAgua: boolean;
 };
 
 export async function getResumen(anio: number, mes: number): Promise<ResumenMes> {
@@ -299,9 +361,20 @@ export async function getResumen(anio: number, mes: number): Promise<ResumenMes>
     pendiente: aCobrar - cobrado,
     consumoTotal: cobros.reduce((acc, c) => acc + c.consumo, 0),
     importeLuz: cobros.reduce((acc, c) => acc + c.importe_luz, 0),
+    importeAgua: cobros.reduce((acc, c) => acc + c.importe_agua, 0),
     inquilinosActivos: cobros.length,
     alDia: cobros.filter((c) => c.saldo <= 0.009 && c.total > 0).length,
     precioKwh: precioKwh(periodo),
-    hayFactura: Boolean(periodo?.importe_factura || periodo?.precio_kwh),
+    hayFacturaLuz: Boolean(periodo?.importe_factura || periodo?.precio_kwh),
+    hayFacturaAgua: Boolean(periodo?.importe_agua),
   };
+}
+
+/** Estado general para decidir si mostrar la guía de primeros pasos. */
+export async function getPrimerosPasos() {
+  const [filas] = (await sql`
+    select (select count(*) from propiedades)::int as propiedades,
+           (select count(*) from inquilinos where activo)::int as inquilinos
+  `) as { propiedades: number; inquilinos: number }[];
+  return filas;
 }

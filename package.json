@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:setup": "node scripts/db-setup.mjs"
+    "db:setup": "node scripts/db-setup.mjs",
+    "demo:cargar": "node scripts/demo.mjs",
+    "demo:limpiar": "node scripts/demo.mjs --limpiar",
+    "test:humo": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

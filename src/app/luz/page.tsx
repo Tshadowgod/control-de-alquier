@@ -1,19 +1,10 @@
+import Link from "next/link";
+import { BotonGuardar } from "@/components/boton-guardar";
 import { Encabezado } from "@/components/encabezado";
 import { SelectorMes } from "@/components/selector-mes";
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Field,
-  Input,
-  Stat,
-  Table,
-  Td,
-  Th,
-} from "@/components/ui";
-import { guardarFactura, guardarLectura } from "@/lib/actions";
-import { etiquetaPeriodo, fechaInput, kwh, money, num } from "@/lib/format";
+import { Badge, Card, EmptyState, Field, Input, Stat, Table, Td, Th } from "@/components/ui";
+import { guardarFactura, guardarLecturas } from "@/lib/actions";
+import { etiquetaPeriodo, fechaInput, kwh, money, moneyFino, num } from "@/lib/format";
 import { resolverMes } from "@/lib/periodo";
 import { getLecturas, getPeriodo, precioKwh } from "@/lib/queries";
 
@@ -22,9 +13,12 @@ export const dynamic = "force-dynamic";
 export default async function LuzPage({
   searchParams,
 }: {
-  searchParams: Promise<{ anio?: string; mes?: string }>;
+  searchParams: Promise<{ anio?: string; mes?: string; ajustar?: string }>;
 }) {
-  const { anio, mes } = resolverMes(await searchParams);
+  const params = await searchParams;
+  const { anio, mes } = resolverMes(params);
+  const ajustar = params.ajustar === "1";
+
   const [periodo, lecturas] = await Promise.all([getPeriodo(anio, mes), getLecturas(anio, mes)]);
 
   const precio = precioKwh(periodo);
@@ -32,19 +26,20 @@ export default async function LuzPage({
   const importeTotal = lecturas.reduce((acc, l) => acc + l.importe, 0);
   const cargadas = lecturas.filter((l) => l.lectura_actual !== null).length;
   const diferencia = (periodo?.importe_factura ?? 0) - importeTotal;
+  const ids = lecturas.map((l) => l.inquilino_id).join(",");
 
   return (
     <>
       <Encabezado
-        titulo="Luz / consumo por medidor"
-        subtitulo={`Factura y lecturas de ${etiquetaPeriodo(anio, mes)}`}
+        titulo="Luz"
+        subtitulo={`Factura y medidores de ${etiquetaPeriodo(anio, mes)}`}
         acciones={<SelectorMes anio={anio} mes={mes} />}
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label="Precio por kWh"
-          value={precio > 0 ? money(precio) : "—"}
+          value={precio > 0 ? moneyFino(precio) : "—"}
           hint={
             periodo?.importe_factura && periodo?.kwh_factura
               ? "Calculado desde la factura"
@@ -68,12 +63,13 @@ export default async function LuzPage({
         />
       </div>
 
+      {/* Paso 1 */}
       <Card
         className="mb-6"
-        title="Factura del mes"
-        description="Cargá el total que llegó y los kWh facturados: el precio por kWh sale solo."
+        title="1 · La factura que llegó"
+        description="Poné el importe total y los kWh facturados: el precio por kWh se calcula solo."
       >
-        <form action={guardarFactura} className="grid gap-4 px-5 py-5 sm:grid-cols-2 xl:grid-cols-5">
+        <form action={guardarFactura} className="grid gap-4 px-5 py-5 sm:grid-cols-2 xl:grid-cols-4">
           <input type="hidden" name="anio" value={anio} />
           <input type="hidden" name="mes" value={mes} />
 
@@ -99,17 +95,6 @@ export default async function LuzPage({
             />
           </Field>
 
-          <Field label="Precio por kWh (manual)" hint="Solo si no cargás importe y kWh.">
-            <Input
-              name="precio_kwh"
-              type="number"
-              step="0.0001"
-              min="0"
-              defaultValue={periodo?.precio_kwh ?? ""}
-              placeholder="0.0000"
-            />
-          </Field>
-
           <Field label="Fecha de la factura">
             <Input
               name="fecha_factura"
@@ -119,123 +104,164 @@ export default async function LuzPage({
           </Field>
 
           <div className="flex items-end">
-            <Button type="submit" variant="primario" className="w-full">
-              Guardar factura
-            </Button>
+            <BotonGuardar className="w-full">Guardar factura</BotonGuardar>
           </div>
 
-          <Field label="Notas" className="sm:col-span-2 xl:col-span-5">
-            <Input name="notas" defaultValue={periodo?.notas ?? ""} placeholder="Opcional" />
-          </Field>
+          <details className="sm:col-span-2 xl:col-span-4">
+            <summary className="cursor-pointer text-xs font-medium text-tenue hover:text-tinta">
+              Opciones avanzadas
+            </summary>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Precio por kWh a mano"
+                hint="Solo si no cargás importe y kWh totales."
+              >
+                <Input
+                  name="precio_kwh"
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  defaultValue={periodo?.precio_kwh ?? ""}
+                  placeholder="0.0000"
+                />
+              </Field>
+              <Field label="Notas">
+                <Input name="notas" defaultValue={periodo?.notas ?? ""} placeholder="Opcional" />
+              </Field>
+            </div>
+          </details>
         </form>
       </Card>
 
+      {/* Paso 2 */}
       <Card
-        title="Lecturas de medidores"
-        description="La lectura anterior se completa sola con la del mes pasado. Escribí la actual y guardá."
+        title="2 · Lecturas de los medidores"
+        description="Solo escribí el número que marca hoy cada medidor. Lo demás se calcula solo."
+        actions={
+          <Link
+            href={`/luz?anio=${anio}&mes=${mes}${ajustar ? "" : "&ajustar=1"}`}
+            className="text-sm font-medium text-marca hover:underline"
+          >
+            {ajustar ? "Listo" : "Corregir lecturas anteriores"}
+          </Link>
+        }
       >
         {lecturas.length === 0 ? (
           <EmptyState
             title="No hay inquilinos activos"
-            description="Cargá inquilinos con su medidor para registrar el consumo."
+            description="Cargá inquilinos con su medidor para poder registrar el consumo."
+            action={
+              <Link
+                href="/inquilinos"
+                className="text-sm font-medium text-marca hover:underline"
+              >
+                Ir a inquilinos →
+              </Link>
+            }
           />
         ) : (
-          <Table>
-            <thead>
-              <tr>
-                <Th>Inquilino</Th>
-                <Th>Medidor</Th>
-                <Th align="right">Lectura anterior</Th>
-                <Th align="right">Lectura actual</Th>
-                <Th align="right">Consumo</Th>
-                <Th align="right">Importe</Th>
-                <Th align="right" className="no-print" />
-              </tr>
-            </thead>
-            <tbody>
-              {lecturas.map((fila) => (
-                <tr key={fila.inquilino_id} className="hover:bg-lienzo/60">
-                  <Td>
-                    <span className="font-medium text-tinta">{fila.inquilino_nombre}</span>
-                    <span className="block text-xs text-tenue">
-                      {fila.propiedad_nombre ?? "Sin propiedad"}
-                    </span>
+          <form action={guardarLecturas}>
+            <input type="hidden" name="anio" value={anio} />
+            <input type="hidden" name="mes" value={mes} />
+            <input type="hidden" name="ids" value={ids} />
+
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Inquilino</Th>
+                  <Th align="right">Lectura anterior</Th>
+                  <Th align="right">Lectura de hoy</Th>
+                  <Th align="right">Consumo</Th>
+                  <Th align="right">Importe</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {lecturas.map((fila) => (
+                  <tr key={fila.inquilino_id} className="hover:bg-lienzo/60">
+                    <Td>
+                      <span className="font-medium text-tinta">{fila.inquilino_nombre}</span>
+                      <span className="block text-xs text-tenue">
+                        {fila.medidor ? `Medidor ${fila.medidor}` : "Sin medidor"}
+                        {fila.propiedad_nombre ? ` · ${fila.propiedad_nombre}` : ""}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      {ajustar ? (
+                        <Input
+                          name={`lectura_anterior_${fila.inquilino_id}`}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          defaultValue={fila.lectura_anterior}
+                          className="tabular w-28 text-right"
+                        />
+                      ) : (
+                        <>
+                          <input
+                            type="hidden"
+                            name={`lectura_anterior_${fila.inquilino_id}`}
+                            value={fila.lectura_anterior}
+                          />
+                          <span className="tabular text-tenue">{num(fila.lectura_anterior)}</span>
+                        </>
+                      )}
+                    </Td>
+                    <Td align="right">
+                      <Input
+                        name={`lectura_actual_${fila.inquilino_id}`}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        defaultValue={fila.lectura_actual ?? ""}
+                        placeholder="—"
+                        className="tabular w-32 text-right"
+                      />
+                    </Td>
+                    <Td align="right" className="tabular">
+                      {fila.lectura_actual === null ? (
+                        <span className="text-tenue">—</span>
+                      ) : (
+                        <span className="font-medium">{kwh(fila.consumo)}</span>
+                      )}
+                    </Td>
+                    <Td align="right" className="tabular font-medium">
+                      {fila.lectura_actual === null || precio === 0 ? (
+                        <span className="text-tenue">—</span>
+                      ) : (
+                        money(fila.importe)
+                      )}
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-lienzo/70">
+                  <Td className="font-semibold">Total</Td>
+                  <Td />
+                  <Td />
+                  <Td align="right" className="tabular font-semibold">
+                    {kwh(consumoTotal)}
                   </Td>
-                  <Td>
-                    <span className="text-sm text-tenue">{fila.medidor || "—"}</span>
-                  </Td>
-                  <Td align="right">
-                    <Input
-                      form={`lectura-${fila.inquilino_id}`}
-                      name="lectura_anterior"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      defaultValue={fila.lectura_anterior}
-                      className="tabular w-28 text-right"
-                    />
-                  </Td>
-                  <Td align="right">
-                    <Input
-                      form={`lectura-${fila.inquilino_id}`}
-                      name="lectura_actual"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      defaultValue={fila.lectura_actual ?? ""}
-                      placeholder="—"
-                      className="tabular w-28 text-right"
-                    />
-                  </Td>
-                  <Td align="right" className="tabular">
-                    {fila.lectura_actual === null ? (
-                      <span className="text-tenue">—</span>
-                    ) : (
-                      <span className="font-medium">{num(fila.consumo)}</span>
-                    )}
-                  </Td>
-                  <Td align="right" className="tabular font-medium">
-                    {fila.lectura_actual === null || precio === 0 ? (
-                      <span className="text-tenue">—</span>
-                    ) : (
-                      money(fila.importe)
-                    )}
-                  </Td>
-                  <Td align="right" className="no-print">
-                    <form id={`lectura-${fila.inquilino_id}`} action={guardarLectura}>
-                      <input type="hidden" name="anio" value={anio} />
-                      <input type="hidden" name="mes" value={mes} />
-                      <input type="hidden" name="inquilino_id" value={fila.inquilino_id} />
-                      <Button type="submit" size="sm">
-                        Guardar
-                      </Button>
-                    </form>
+                  <Td align="right" className="tabular font-semibold">
+                    {money(importeTotal)}
                   </Td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-lienzo/70">
-                <Td className="font-semibold">Total</Td>
-                <Td />
-                <Td />
-                <Td />
-                <Td align="right" className="tabular font-semibold">
-                  {num(consumoTotal)}
-                </Td>
-                <Td align="right" className="tabular font-semibold">
-                  {money(importeTotal)}
-                </Td>
-                <Td className="no-print" />
-              </tr>
-            </tfoot>
-          </Table>
+              </tfoot>
+            </Table>
+
+            <div className="no-print flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+              <p className="text-xs text-tenue">
+                Si dejás una lectura vacía, ese inquilino queda sin consumo este mes.
+              </p>
+              <BotonGuardar>Guardar todas las lecturas</BotonGuardar>
+            </div>
+          </form>
         )}
 
         {precio === 0 && lecturas.length > 0 && (
-          <div className="px-5 py-4">
+          <div className="border-t border-borde px-5 py-4">
             <Badge tone="aviso">
-              Falta el precio por kWh: cargá la factura de arriba para ver los importes.
+              Falta el precio por kWh: completá la factura de arriba para ver los importes.
             </Badge>
           </div>
         )}

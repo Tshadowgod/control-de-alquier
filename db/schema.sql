@@ -68,6 +68,20 @@ create table if not exists pagos (
   unique (inquilino_id, anio, mes)
 );
 
+-- Agua: la factura del mes se reparte entre los inquilinos, en partes iguales
+-- o con un importe cargado a mano para cada uno.
+alter table periodos add column if not exists importe_agua numeric(12,2);
+alter table periodos add column if not exists reparto_agua text not null default 'partes_iguales';
+alter table periodos add column if not exists fecha_factura_agua date;
+
+create table if not exists agua_inquilino (
+  id           serial primary key,
+  periodo_id   integer not null references periodos(id) on delete cascade,
+  inquilino_id integer not null references inquilinos(id) on delete cascade,
+  importe      numeric(12,2) not null default 0,
+  unique (periodo_id, inquilino_id)
+);
+
 create index if not exists idx_inquilinos_propiedad on inquilinos (propiedad_id);
 create index if not exists idx_lecturas_periodo on lecturas (periodo_id);
 create index if not exists idx_pagos_mes on pagos (anio, mes);

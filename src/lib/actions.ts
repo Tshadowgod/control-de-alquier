@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
+import { getCobros } from "@/lib/queries";
 
 function texto(data: FormData, campo: string): string | null {
   const valor = data.get(campo);
@@ -168,81 +169,176 @@ export async function guardarFactura(data: FormData) {
   refrescarTodo();
 }
 
-/** Guarda la lectura del medidor de un inquilino en el mes indicado. */
-export async function guardarLectura(data: FormData) {
+/** Ids de las filas que envía una tabla de carga masiva. */
+function idsDeFilas(data: FormData): number[] {
+  return (texto(data, "ids") ?? "")
+    .split(",")
+    .map((x) => Number.parseInt(x, 10))
+    .filter((x) => Number.isFinite(x));
+}
+
+/**
+ * Guarda de una sola vez las lecturas de todos los medidores del mes.
+ * Las filas que quedan sin lectura actual se borran.
+ */
+export async function guardarLecturas(data: FormData) {
   const anio = entero(data, "anio");
   const mes = entero(data, "mes");
-  const inquilinoId = entero(data, "inquilino_id");
-  if (!anio || !mes || !inquilinoId) return;
+  const ids = idsDeFilas(data);
+  if (!anio || !mes || ids.length === 0) return;
 
   const periodoId = await asegurarPeriodo(anio, mes);
-  const anterior = numero(data, "lectura_anterior");
-  const actual = numero(data, "lectura_actual");
 
-  await sql`
-    insert into lecturas (periodo_id, inquilino_id, lectura_anterior, lectura_actual, notas)
-    values (${periodoId}, ${inquilinoId}, ${anterior}, ${actual}, ${texto(data, "notas")})
-    on conflict (periodo_id, inquilino_id) do update
-       set lectura_anterior = excluded.lectura_anterior,
-           lectura_actual = excluded.lectura_actual,
-           notas = excluded.notas
-  `;
+  const conLectura = ids.filter((id) => texto(data, `lectura_actual_${id}`) !== null);
+  const sinLectura = ids.filter((id) => texto(data, `lectura_actual_${id}`) === null);
+
+  if (conLectura.length > 0) {
+    const valores = conLectura
+      .map((_, i) => `($${i * 4 + 1}::int, $${i * 4 + 2}::int, $${i * 4 + 3}::numeric, $${i * 4 + 4}::numeric)`)
+      .join(", ");
+    const params = conLectura.flatMap((id) => [
+      periodoId,
+      id,
+      numero(data, `lectura_anterior_${id}`),
+      numero(data, `lectura_actual_${id}`),
+    ]);
+
+    await sql.query(
+      `insert into lecturas (periodo_id, inquilino_id, lectura_anterior, lectura_actual)
+       values ${valores}
+       on conflict (periodo_id, inquilino_id) do update
+          set lectura_anterior = excluded.lectura_anterior,
+              lectura_actual = excluded.lectura_actual`,
+      params
+    );
+  }
+
+  if (sinLectura.length > 0) {
+    await sql`
+      delete from lecturas
+       where periodo_id = ${periodoId}
+         and inquilino_id = any(${sinLectura}::int[])
+    `;
+  }
 
   refrescarTodo();
 }
 
-export async function borrarLectura(data: FormData) {
-  const id = entero(data, "lectura_id");
-  if (id) await sql`delete from lecturas where id = ${id}`;
+/* --------------------------------- Agua ----------------------------------- */
+
+/** Carga la factura de agua del mes y, si el reparto es manual, cada importe. */
+export async function guardarAgua(data: FormData) {
+  const anio = entero(data, "anio");
+  const mes = entero(data, "mes");
+  if (!anio || !mes) return;
+
+  const periodoId = await asegurarPeriodo(anio, mes);
+  const reparto = texto(data, "reparto_agua") === "manual" ? "manual" : "partes_iguales";
+
+  await sql`
+    update periodos
+       set importe_agua = ${numeroOpcional(data, "importe_agua")},
+           reparto_agua = ${reparto},
+           fecha_factura_agua = ${texto(data, "fecha_factura_agua")}
+     where id = ${periodoId}
+  `;
+
+  const ids = idsDeFilas(data);
+
+  if (reparto === "manual" && ids.length > 0) {
+    const valores = ids
+      .map((_, i) => `($${i * 3 + 1}::int, $${i * 3 + 2}::int, $${i * 3 + 3}::numeric)`)
+      .join(", ");
+    const params = ids.flatMap((id) => [periodoId, id, numero(data, `agua_${id}`)]);
+
+    await sql.query(
+      `insert into agua_inquilino (periodo_id, inquilino_id, importe)
+       values ${valores}
+       on conflict (periodo_id, inquilino_id) do update set importe = excluded.importe`,
+      params
+    );
+  }
+
   refrescarTodo();
 }
 
 /* -------------------------------- Cobros ---------------------------------- */
 
-/** Registra el cobro del mes de un inquilino (alquiler, extras y lo pagado). */
-export async function guardarCobro(data: FormData) {
+/** Guarda de una sola vez los cobros de todos los inquilinos del mes. */
+export async function guardarCobros(data: FormData) {
   const anio = entero(data, "anio");
   const mes = entero(data, "mes");
-  const inquilinoId = entero(data, "inquilino_id");
-  if (!anio || !mes || !inquilinoId) return;
+  const ids = idsDeFilas(data);
+  if (!anio || !mes || ids.length === 0) return;
 
-  await sql`
-    insert into pagos (inquilino_id, anio, mes, monto_alquiler, extras,
-                       concepto_extra, pagado, fecha_pago, notas)
-    values (${inquilinoId}, ${anio}, ${mes}, ${numero(data, "monto_alquiler")},
-            ${numero(data, "extras")}, ${texto(data, "concepto_extra")},
-            ${numero(data, "pagado")}, ${texto(data, "fecha_pago")},
-            ${texto(data, "notas")})
-    on conflict (inquilino_id, anio, mes) do update
-       set monto_alquiler = excluded.monto_alquiler,
-           extras = excluded.extras,
-           concepto_extra = excluded.concepto_extra,
-           pagado = excluded.pagado,
-           fecha_pago = excluded.fecha_pago,
-           notas = excluded.notas
-  `;
+  const valores = ids
+    .map(
+      (_, i) =>
+        `($${i * 7 + 1}::int, $${i * 7 + 2}::int, $${i * 7 + 3}::int, $${i * 7 + 4}::numeric,` +
+        ` $${i * 7 + 5}::numeric, $${i * 7 + 6}::numeric, $${i * 7 + 7}::date)`
+    )
+    .join(", ");
+
+  const params = ids.flatMap((id) => [
+    id,
+    anio,
+    mes,
+    numero(data, `monto_alquiler_${id}`),
+    numero(data, `extras_${id}`),
+    numero(data, `pagado_${id}`),
+    texto(data, `fecha_pago_${id}`),
+  ]);
+
+  await sql.query(
+    `insert into pagos (inquilino_id, anio, mes, monto_alquiler, extras, pagado, fecha_pago)
+     values ${valores}
+     on conflict (inquilino_id, anio, mes) do update
+        set monto_alquiler = excluded.monto_alquiler,
+            extras = excluded.extras,
+            pagado = excluded.pagado,
+            fecha_pago = excluded.fecha_pago`,
+    params
+  );
 
   refrescarTodo();
 }
 
-/** Marca el mes como saldado: lo pagado pasa a ser el total adeudado. */
-export async function marcarPagado(data: FormData) {
+/** Da por cobrado todo lo que queda pendiente en el mes. */
+export async function saldarPendientes(data: FormData) {
   const anio = entero(data, "anio");
   const mes = entero(data, "mes");
-  const inquilinoId = entero(data, "inquilino_id");
-  const total = numero(data, "total");
-  if (!anio || !mes || !inquilinoId) return;
+  if (!anio || !mes) return;
+
+  const pendientes = (await getCobros(anio, mes)).filter((c) => c.saldo > 0.009);
+  if (pendientes.length === 0) return;
 
   const hoy = new Date().toISOString().slice(0, 10);
+  const valores = pendientes
+    .map(
+      (_, i) =>
+        `($${i * 7 + 1}::int, $${i * 7 + 2}::int, $${i * 7 + 3}::int, $${i * 7 + 4}::numeric,` +
+        ` $${i * 7 + 5}::numeric, $${i * 7 + 6}::numeric, $${i * 7 + 7}::date)`
+    )
+    .join(", ");
 
-  await sql`
-    insert into pagos (inquilino_id, anio, mes, monto_alquiler, extras, pagado, fecha_pago)
-    values (${inquilinoId}, ${anio}, ${mes}, ${numero(data, "monto_alquiler")},
-            ${numero(data, "extras")}, ${total}, ${hoy})
-    on conflict (inquilino_id, anio, mes) do update
-       set pagado = ${total},
-           fecha_pago = ${hoy}
-  `;
+  const params = pendientes.flatMap((c) => [
+    c.inquilino_id,
+    anio,
+    mes,
+    c.monto_alquiler,
+    c.extras,
+    c.total,
+    hoy,
+  ]);
+
+  await sql.query(
+    `insert into pagos (inquilino_id, anio, mes, monto_alquiler, extras, pagado, fecha_pago)
+     values ${valores}
+     on conflict (inquilino_id, anio, mes) do update
+        set pagado = excluded.pagado,
+            fecha_pago = excluded.fecha_pago`,
+    params
+  );
 
   refrescarTodo();
 }

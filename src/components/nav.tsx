@@ -7,6 +7,7 @@ const enlaces = [
   { href: "/", label: "Panel", icono: "◱" },
   { href: "/cobros", label: "Cobros del mes", icono: "◧" },
   { href: "/luz", label: "Luz / kWh", icono: "◔" },
+  { href: "/agua", label: "Agua", icono: "◍" },
   { href: "/inquilinos", label: "Inquilinos", icono: "◇" },
   { href: "/propiedades", label: "Propiedades", icono: "◻" },
 ];

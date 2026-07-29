@@ -1,7 +1,10 @@
+import Link from "next/link";
+import { BotonCobrado } from "@/components/boton-cobrado";
+import { BotonGuardar } from "@/components/boton-guardar";
 import { Encabezado } from "@/components/encabezado";
 import { SelectorMes } from "@/components/selector-mes";
-import { Badge, Button, Card, EmptyState, Input, Stat, Table, Td, Th } from "@/components/ui";
-import { guardarCobro, marcarPagado } from "@/lib/actions";
+import { Badge, Card, EmptyState, Input, Stat, Table, Td, Th } from "@/components/ui";
+import { guardarCobros, saldarPendientes } from "@/lib/actions";
 import { etiquetaPeriodo, fechaInput, kwh, money } from "@/lib/format";
 import { resolverMes } from "@/lib/periodo";
 import { getCobros, type FilaCobro } from "@/lib/queries";
@@ -26,13 +29,16 @@ export default async function CobrosPage({
   const total = cobros.reduce((acc, c) => acc + c.total, 0);
   const cobrado = cobros.reduce((acc, c) => acc + c.pagado, 0);
   const totalLuz = cobros.reduce((acc, c) => acc + c.importe_luz, 0);
+  const totalAgua = cobros.reduce((acc, c) => acc + c.importe_agua, 0);
   const totalAlquiler = cobros.reduce((acc, c) => acc + c.monto_alquiler, 0);
+  const pendientes = cobros.filter((c) => c.saldo > 0.009).length;
+  const ids = cobros.map((c) => c.inquilino_id).join(",");
 
   return (
     <>
       <Encabezado
         titulo="Cobros del mes"
-        subtitulo={`Alquiler + luz de ${etiquetaPeriodo(anio, mes)}`}
+        subtitulo={`Alquiler, luz y agua de ${etiquetaPeriodo(anio, mes)}`}
         acciones={<SelectorMes anio={anio} mes={mes} />}
       />
 
@@ -42,43 +48,64 @@ export default async function CobrosPage({
         <Stat
           label="Pendiente"
           value={money(total - cobrado)}
+          hint={`${pendientes} inquilinos con saldo`}
           tone={total - cobrado > 0.009 ? "alerta" : "ok"}
         />
         <Stat
-          label="Desglose"
-          value={money(totalAlquiler)}
-          hint={`Alquileres · ${money(totalLuz)} de luz`}
+          label="Servicios del mes"
+          value={money(totalLuz + totalAgua)}
+          hint={`${money(totalLuz)} de luz · ${money(totalAgua)} de agua`}
         />
       </div>
 
       <Card
         title="Detalle por inquilino"
-        description="Editá el alquiler o los extras del mes y anotá lo que se cobró."
+        description="Escribí lo que cobraste en la columna Pagado y guardá todo de una vez."
+        actions={
+          pendientes > 0 ? (
+            <form action={saldarPendientes}>
+              <input type="hidden" name="anio" value={anio} />
+              <input type="hidden" name="mes" value={mes} />
+              <BotonGuardar variant="secundario" size="sm" enCurso="Saldando…">
+                {`Marcar los ${pendientes} pendientes como pagados`}
+              </BotonGuardar>
+            </form>
+          ) : undefined
+        }
       >
         {cobros.length === 0 ? (
           <EmptyState
             title="No hay inquilinos activos"
             description="Cargá inquilinos para empezar a registrar los cobros del mes."
+            action={
+              <Link href="/inquilinos" className="text-sm font-medium text-marca hover:underline">
+                Ir a inquilinos →
+              </Link>
+            }
           />
         ) : (
-          <Table>
-            <thead>
-              <tr>
-                <Th>Inquilino</Th>
-                <Th align="right">Alquiler</Th>
-                <Th align="right">Luz</Th>
-                <Th align="right">Extras</Th>
-                <Th align="right">Total</Th>
-                <Th align="right">Pagado</Th>
-                <Th align="right">Saldo</Th>
-                <Th>Estado</Th>
-                <Th align="right" className="no-print" />
-              </tr>
-            </thead>
-            <tbody>
-              {cobros.map((fila) => {
-                const formId = `cobro-${fila.inquilino_id}`;
-                return (
+          <form action={guardarCobros}>
+            <input type="hidden" name="anio" value={anio} />
+            <input type="hidden" name="mes" value={mes} />
+            <input type="hidden" name="ids" value={ids} />
+
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Inquilino</Th>
+                  <Th align="right">Alquiler</Th>
+                  <Th align="right">Luz</Th>
+                  <Th align="right">Agua</Th>
+                  <Th align="right">Extras</Th>
+                  <Th align="right">Total</Th>
+                  <Th align="right">Pagado</Th>
+                  <Th align="right">Saldo</Th>
+                  <Th>Estado</Th>
+                  <Th align="right" className="no-print" />
+                </tr>
+              </thead>
+              <tbody>
+                {cobros.map((fila) => (
                   <tr key={fila.inquilino_id} className="hover:bg-lienzo/60">
                     <Td>
                       <span className="font-medium text-tinta">{fila.inquilino_nombre}</span>
@@ -88,8 +115,7 @@ export default async function CobrosPage({
                     </Td>
                     <Td align="right">
                       <Input
-                        form={formId}
-                        name="monto_alquiler"
+                        name={`monto_alquiler_${fila.inquilino_id}`}
                         type="number"
                         step="0.01"
                         min="0"
@@ -101,10 +127,12 @@ export default async function CobrosPage({
                       <span className="font-medium">{money(fila.importe_luz)}</span>
                       <span className="block text-xs text-tenue">{kwh(fila.consumo)}</span>
                     </Td>
+                    <Td align="right" className="tabular font-medium">
+                      {money(fila.importe_agua)}
+                    </Td>
                     <Td align="right">
                       <Input
-                        form={formId}
-                        name="extras"
+                        name={`extras_${fila.inquilino_id}`}
                         type="number"
                         step="0.01"
                         defaultValue={fila.extras}
@@ -116,13 +144,18 @@ export default async function CobrosPage({
                     </Td>
                     <Td align="right">
                       <Input
-                        form={formId}
-                        name="pagado"
+                        id={`pagado-${fila.inquilino_id}`}
+                        name={`pagado_${fila.inquilino_id}`}
                         type="number"
                         step="0.01"
                         min="0"
                         defaultValue={fila.pagado}
                         className="tabular w-28 text-right"
+                      />
+                      <input
+                        type="hidden"
+                        name={`fecha_pago_${fila.inquilino_id}`}
+                        value={fechaInput(fila.fecha_pago) || new Date().toISOString().slice(0, 10)}
                       />
                     </Td>
                     <Td
@@ -135,67 +168,51 @@ export default async function CobrosPage({
                     </Td>
                     <Td>{estado(fila)}</Td>
                     <Td align="right" className="no-print">
-                      <div className="flex justify-end gap-2">
-                        <form id={formId} action={guardarCobro} className="contents">
-                          <input type="hidden" name="anio" value={anio} />
-                          <input type="hidden" name="mes" value={mes} />
-                          <input type="hidden" name="inquilino_id" value={fila.inquilino_id} />
-                          <Input
-                            type="date"
-                            name="fecha_pago"
-                            defaultValue={fechaInput(fila.fecha_pago)}
-                            className="w-36"
-                          />
-                          <Button type="submit" size="sm">
-                            Guardar
-                          </Button>
-                        </form>
-                        <form action={marcarPagado}>
-                          <input type="hidden" name="anio" value={anio} />
-                          <input type="hidden" name="mes" value={mes} />
-                          <input type="hidden" name="inquilino_id" value={fila.inquilino_id} />
-                          <input type="hidden" name="monto_alquiler" value={fila.monto_alquiler} />
-                          <input type="hidden" name="extras" value={fila.extras} />
-                          <input type="hidden" name="total" value={fila.total} />
-                          <Button
-                            type="submit"
-                            size="sm"
-                            variant="primario"
-                            disabled={fila.saldo <= 0.009}
-                          >
-                            Saldar
-                          </Button>
-                        </form>
-                      </div>
+                      {fila.saldo > 0.009 && (
+                        <BotonCobrado
+                          inputId={`pagado-${fila.inquilino_id}`}
+                          total={fila.total}
+                        />
+                      )}
                     </Td>
                   </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="bg-lienzo/70">
-                <Td className="font-semibold">Total</Td>
-                <Td align="right" className="tabular font-semibold">
-                  {money(totalAlquiler)}
-                </Td>
-                <Td align="right" className="tabular font-semibold">
-                  {money(totalLuz)}
-                </Td>
-                <Td />
-                <Td align="right" className="tabular font-semibold">
-                  {money(total)}
-                </Td>
-                <Td align="right" className="tabular font-semibold">
-                  {money(cobrado)}
-                </Td>
-                <Td align="right" className="tabular font-semibold">
-                  {money(total - cobrado)}
-                </Td>
-                <Td />
-                <Td className="no-print" />
-              </tr>
-            </tfoot>
-          </Table>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-lienzo/70">
+                  <Td className="font-semibold">Total</Td>
+                  <Td align="right" className="tabular font-semibold">
+                    {money(totalAlquiler)}
+                  </Td>
+                  <Td align="right" className="tabular font-semibold">
+                    {money(totalLuz)}
+                  </Td>
+                  <Td align="right" className="tabular font-semibold">
+                    {money(totalAgua)}
+                  </Td>
+                  <Td />
+                  <Td align="right" className="tabular font-semibold">
+                    {money(total)}
+                  </Td>
+                  <Td align="right" className="tabular font-semibold">
+                    {money(cobrado)}
+                  </Td>
+                  <Td align="right" className="tabular font-semibold">
+                    {money(total - cobrado)}
+                  </Td>
+                  <Td />
+                  <Td className="no-print" />
+                </tr>
+              </tfoot>
+            </Table>
+
+            <div className="no-print flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+              <p className="text-xs text-tenue">
+                Los importes de luz y agua salen de sus páginas: acá solo se muestran.
+              </p>
+              <BotonGuardar>Guardar todos los cobros</BotonGuardar>
+            </div>
+          </form>
         )}
       </Card>
     </>
