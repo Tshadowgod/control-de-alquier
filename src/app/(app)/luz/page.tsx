@@ -36,7 +36,7 @@ export default async function LuzPage({
         acciones={<SelectorMes anio={anio} mes={mes} />}
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Stat
           label="Precio por kWh"
           value={precio > 0 ? moneyFino(precio) : "—"}
@@ -165,7 +165,7 @@ export default async function LuzPage({
             <input type="hidden" name="mes" value={mes} />
             <input type="hidden" name="ids" value={ids} />
 
-            <Table>
+            <Table cards>
               <thead>
                 <tr>
                   <Th>Inquilino</Th>
@@ -178,14 +178,14 @@ export default async function LuzPage({
               <tbody>
                 {lecturas.map((fila) => (
                   <tr key={fila.inquilino_id} className="hover:bg-lienzo/60">
-                    <Td>
+                    <Td titulo>
                       <span className="font-medium text-tinta">{fila.inquilino_nombre}</span>
                       <span className="block text-xs text-tenue">
                         {fila.medidor ? `Medidor ${fila.medidor}` : "Sin medidor"}
                         {fila.propiedad_nombre ? ` · ${fila.propiedad_nombre}` : ""}
                       </span>
                     </Td>
-                    <Td align="right">
+                    <Td align="right" label="Lectura anterior">
                       {ajustar ? (
                         <Input
                           name={`lectura_anterior_${fila.inquilino_id}`}
@@ -206,7 +206,7 @@ export default async function LuzPage({
                         </>
                       )}
                     </Td>
-                    <Td align="right">
+                    <Td align="right" label="Lectura de hoy">
                       <Input
                         name={`lectura_actual_${fila.inquilino_id}`}
                         type="number"
@@ -217,14 +217,14 @@ export default async function LuzPage({
                         className="tabular w-32 text-right"
                       />
                     </Td>
-                    <Td align="right" className="tabular">
+                    <Td align="right" className="tabular" label="Consumo">
                       {fila.lectura_actual === null ? (
                         <span className="text-tenue">—</span>
                       ) : (
                         <span className="font-medium">{kwh(fila.consumo)}</span>
                       )}
                     </Td>
-                    <Td align="right" className="tabular font-medium">
+                    <Td align="right" className="tabular font-medium" label="Importe">
                       {fila.lectura_actual === null || precio === 0 ? (
                         <span className="text-tenue">—</span>
                       ) : (
@@ -236,13 +236,15 @@ export default async function LuzPage({
               </tbody>
               <tfoot>
                 <tr className="bg-lienzo/70">
-                  <Td className="font-semibold">Total</Td>
+                  <Td titulo className="font-semibold">
+                    Total del mes
+                  </Td>
                   <Td />
                   <Td />
-                  <Td align="right" className="tabular font-semibold">
+                  <Td align="right" className="tabular font-semibold" label="Consumo">
                     {kwh(consumoTotal)}
                   </Td>
-                  <Td align="right" className="tabular font-semibold">
+                  <Td align="right" className="tabular font-semibold" label="Importe">
                     {money(importeTotal)}
                   </Td>
                 </tr>

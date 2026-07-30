@@ -107,7 +107,7 @@ export default async function PanelPage({
         acciones={<SelectorMes anio={anio} mes={mes} />}
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Stat
           label="A cobrar este mes"
           value={money(resumen.aCobrar)}
@@ -153,7 +153,7 @@ export default async function PanelPage({
               description="No queda ningún saldo pendiente."
             />
           ) : (
-            <Table>
+            <Table cards>
               <thead>
                 <tr>
                   <Th>Inquilino</Th>
@@ -168,28 +168,28 @@ export default async function PanelPage({
               <tbody>
                 {pendientes.map((fila) => (
                   <tr key={fila.inquilino_id} className="hover:bg-lienzo/60">
-                    <Td>
+                    <Td titulo>
                       <span className="font-medium text-tinta">{fila.inquilino_nombre}</span>
                       <span className="block text-xs text-tenue">
                         {fila.propiedad_nombre ?? "Sin propiedad"}
                       </span>
                     </Td>
-                    <Td align="right" className="tabular">
+                    <Td align="right" className="tabular" label="Alquiler">
                       {money(fila.monto_alquiler)}
                     </Td>
-                    <Td align="right" className="tabular">
+                    <Td align="right" className="tabular" label="Luz">
                       {money(fila.importe_luz)}
                     </Td>
-                    <Td align="right" className="tabular">
+                    <Td align="right" className="tabular" label="Agua">
                       {money(fila.importe_agua)}
                     </Td>
-                    <Td align="right" className="tabular">
+                    <Td align="right" className="tabular" label="Total">
                       {money(fila.total)}
                     </Td>
-                    <Td align="right" className="tabular">
+                    <Td align="right" className="tabular" label="Pagado">
                       {money(fila.pagado)}
                     </Td>
-                    <Td align="right" className="tabular font-semibold text-alerta">
+                    <Td align="right" className="tabular font-semibold text-alerta" label="Saldo">
                       {money(fila.saldo)}
                     </Td>
                   </tr>

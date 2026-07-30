@@ -42,7 +42,7 @@ export default async function CobrosPage({
         acciones={<SelectorMes anio={anio} mes={mes} />}
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Stat label="Total a cobrar" value={money(total)} tone="marca" />
         <Stat label="Cobrado" value={money(cobrado)} tone="ok" />
         <Stat
@@ -89,7 +89,7 @@ export default async function CobrosPage({
             <input type="hidden" name="mes" value={mes} />
             <input type="hidden" name="ids" value={ids} />
 
-            <Table>
+            <Table cards>
               <thead>
                 <tr>
                   <Th>Inquilino</Th>
@@ -107,13 +107,13 @@ export default async function CobrosPage({
               <tbody>
                 {cobros.map((fila) => (
                   <tr key={fila.inquilino_id} className="hover:bg-lienzo/60">
-                    <Td>
+                    <Td titulo>
                       <span className="font-medium text-tinta">{fila.inquilino_nombre}</span>
                       <span className="block text-xs text-tenue">
                         {fila.propiedad_nombre ?? "Sin propiedad"}
                       </span>
                     </Td>
-                    <Td align="right">
+                    <Td align="right" label="Alquiler">
                       <Input
                         name={`monto_alquiler_${fila.inquilino_id}`}
                         type="number"
@@ -123,14 +123,14 @@ export default async function CobrosPage({
                         className="tabular w-28 text-right"
                       />
                     </Td>
-                    <Td align="right" className="tabular">
+                    <Td align="right" className="tabular" label="Luz">
                       <span className="font-medium">{money(fila.importe_luz)}</span>
                       <span className="block text-xs text-tenue">{kwh(fila.consumo)}</span>
                     </Td>
-                    <Td align="right" className="tabular font-medium">
+                    <Td align="right" className="tabular font-medium" label="Agua">
                       {money(fila.importe_agua)}
                     </Td>
-                    <Td align="right">
+                    <Td align="right" label="Extras">
                       <Input
                         name={`extras_${fila.inquilino_id}`}
                         type="number"
@@ -139,10 +139,10 @@ export default async function CobrosPage({
                         className="tabular w-24 text-right"
                       />
                     </Td>
-                    <Td align="right" className="tabular font-semibold">
+                    <Td align="right" className="tabular font-semibold" label="Total">
                       {money(fila.total)}
                     </Td>
-                    <Td align="right">
+                    <Td align="right" label="Pagado">
                       <Input
                         id={`pagado-${fila.inquilino_id}`}
                         name={`pagado_${fila.inquilino_id}`}
@@ -160,13 +160,14 @@ export default async function CobrosPage({
                     </Td>
                     <Td
                       align="right"
+                      label="Saldo"
                       className={`tabular font-medium ${
                         fila.saldo > 0.009 ? "text-alerta" : "text-ok"
                       }`}
                     >
                       {money(fila.saldo)}
                     </Td>
-                    <Td>{estado(fila)}</Td>
+                    <Td label="Estado">{estado(fila)}</Td>
                     <Td align="right" className="no-print">
                       {fila.saldo > 0.009 && (
                         <BotonCobrado
@@ -180,24 +181,26 @@ export default async function CobrosPage({
               </tbody>
               <tfoot>
                 <tr className="bg-lienzo/70">
-                  <Td className="font-semibold">Total</Td>
-                  <Td align="right" className="tabular font-semibold">
+                  <Td titulo className="font-semibold">
+                    Total del mes
+                  </Td>
+                  <Td align="right" className="tabular font-semibold" label="Alquiler">
                     {money(totalAlquiler)}
                   </Td>
-                  <Td align="right" className="tabular font-semibold">
+                  <Td align="right" className="tabular font-semibold" label="Luz">
                     {money(totalLuz)}
                   </Td>
-                  <Td align="right" className="tabular font-semibold">
+                  <Td align="right" className="tabular font-semibold" label="Agua">
                     {money(totalAgua)}
                   </Td>
                   <Td />
-                  <Td align="right" className="tabular font-semibold">
+                  <Td align="right" className="tabular font-semibold" label="Total">
                     {money(total)}
                   </Td>
-                  <Td align="right" className="tabular font-semibold">
+                  <Td align="right" className="tabular font-semibold" label="Pagado">
                     {money(cobrado)}
                   </Td>
-                  <Td align="right" className="tabular font-semibold">
+                  <Td align="right" className="tabular font-semibold" label="Saldo">
                     {money(total - cobrado)}
                   </Td>
                   <Td />

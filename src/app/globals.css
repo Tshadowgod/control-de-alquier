@@ -30,9 +30,95 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Números tabulares: las columnas de dinero quedan alineadas. */
+/* Números tabulares: las columnas de dinero quedan alineadas y no se parten. */
 .tabular {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/*
+ * Tablas de datos en el teléfono.
+ *
+ * Una tabla de diez columnas no entra en la pantalla de un teléfono, y
+ * desplazarla en horizontal para cargar datos es incómodo. Debajo de 768px cada
+ * fila se convierte en una tarjeta y cada celda muestra el nombre de su columna,
+ * que viene en `data-label`. Es solo CSS: los campos del formulario son los
+ * mismos en las dos vistas, así que no hay riesgo de enviarlos duplicados.
+ */
+@media (max-width: 767px) {
+  .tabla-cards-marco {
+    overflow-x: visible;
+  }
+
+  .tabla-cards {
+    min-width: 0;
+    display: block;
+  }
+
+  .tabla-cards thead {
+    display: none;
+  }
+
+  .tabla-cards tbody,
+  .tabla-cards tfoot {
+    display: block;
+  }
+
+  .tabla-cards tr {
+    display: block;
+    margin: 0 0.75rem 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--color-borde);
+    border-radius: 0.75rem;
+  }
+
+  .tabla-cards tbody tr:first-child {
+    margin-top: 0.75rem;
+  }
+
+  .tabla-cards tfoot tr {
+    background-color: var(--color-lienzo);
+  }
+
+  .tabla-cards td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0.25rem;
+    border-bottom: 0;
+    text-align: right;
+  }
+
+  /* Celdas vacías: en la tarjeta no aportan nada. */
+  .tabla-cards td:empty {
+    display: none;
+  }
+
+  .tabla-cards td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--color-tenue);
+  }
+
+  /* Celda de acciones: el botón ocupa todo el ancho, más fácil de tocar. */
+  .tabla-cards td:not([data-label]):not([data-titulo]) button {
+    width: 100%;
+  }
+
+  /* La celda del nombre hace de encabezado de la tarjeta. */
+  .tabla-cards td[data-titulo] {
+    display: block;
+    margin-bottom: 0.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-borde);
+    text-align: left;
+  }
 }
 
 @media print {

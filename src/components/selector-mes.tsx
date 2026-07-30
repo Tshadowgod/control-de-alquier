@@ -15,11 +15,12 @@ export function SelectorMes({ anio, mes }: { anio: number; mes: number }) {
   const anioActual = new Date().getFullYear();
   const anios = Array.from({ length: 9 }, (_, i) => anioActual - 5 + i);
 
+  // Alto cómodo para el dedo en el teléfono, más ajustado en pantallas grandes.
   const control =
-    "rounded-lg border border-borde bg-panel px-2.5 py-1.5 text-sm font-medium text-tinta outline-none focus:border-marca focus:ring-2 focus:ring-marca/15";
+    "rounded-lg border border-borde bg-panel px-3 py-2 text-sm font-medium text-tinta outline-none focus:border-marca focus:ring-2 focus:ring-marca/15 sm:px-2.5 sm:py-1.5";
 
   return (
-    <div className="no-print flex items-center gap-2">
+    <div className="no-print flex w-full items-center gap-2 sm:w-auto">
       <button
         type="button"
         aria-label="Mes anterior"
@@ -32,7 +33,7 @@ export function SelectorMes({ anio, mes }: { anio: number; mes: number }) {
       <select
         value={mes}
         onChange={(e) => ir({ anio, mes: Number(e.target.value) })}
-        className={`${control} cursor-pointer`}
+        className={`${control} flex-1 cursor-pointer sm:flex-none`}
         aria-label="Mes"
       >
         {MESES.map((nombre, i) => (
@@ -45,7 +46,7 @@ export function SelectorMes({ anio, mes }: { anio: number; mes: number }) {
       <select
         value={anio}
         onChange={(e) => ir({ anio: Number(e.target.value), mes })}
-        className={`${control} cursor-pointer`}
+        className={`${control} shrink-0 cursor-pointer`}
         aria-label="Año"
       >
         {anios.map((a) => (

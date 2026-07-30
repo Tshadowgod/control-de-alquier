@@ -20,12 +20,12 @@ export function Card({
       className={`rounded-xl border border-borde bg-panel shadow-[0_1px_2px_rgba(16,24,40,0.05)] ${className}`}
     >
       {(title || actions) && (
-        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-borde px-5 py-4">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-borde px-4 py-3.5 sm:px-5 sm:py-4">
           <div>
             {title && <h2 className="text-base font-semibold text-tinta">{title}</h2>}
             {description && <p className="mt-0.5 text-sm text-tenue">{description}</p>}
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </header>
       )}
       {children}
@@ -54,10 +54,14 @@ export function Stat({
   } as const;
 
   return (
-    <div className="rounded-xl border border-borde bg-panel px-5 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
-      <p className="text-xs font-medium uppercase tracking-wide text-tenue">{label}</p>
-      <p className={`tabular mt-1.5 text-2xl font-semibold ${tonos[tone]}`}>{value}</p>
-      {hint && <p className="mt-1 text-xs text-tenue">{hint}</p>}
+    <div className="rounded-xl border border-borde bg-panel px-3.5 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.05)] sm:px-5 sm:py-4">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-tenue sm:text-xs">
+        {label}
+      </p>
+      <p className={`tabular mt-1 text-lg font-semibold sm:mt-1.5 sm:text-2xl ${tonos[tone]}`}>
+        {value}
+      </p>
+      {hint && <p className="mt-1 text-xs leading-snug text-tenue">{hint}</p>}
     </div>
   );
 }
@@ -160,10 +164,26 @@ export function Textarea({ className = "", ...props }: ComponentProps<"textarea"
 
 /* --------------------------------- Tabla ---------------------------------- */
 
-export function Table({ children }: { children: ReactNode }) {
+/**
+ * Tabla de datos. Con `cards`, en pantallas de teléfono cada fila se muestra
+ * como una tarjeta en lugar de desplazarse en horizontal (ver globals.css).
+ * En ese modo hay que pasarle `label` a cada `Td` para que se vea de qué
+ * columna es cada dato.
+ */
+export function Table({ children, cards = false }: { children: ReactNode; cards?: boolean }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] border-collapse text-sm">{children}</table>
+    <div
+      className={`overflow-x-auto overscroll-x-contain [scrollbar-width:thin] ${
+        cards ? "tabla-cards-marco" : ""
+      }`}
+    >
+      <table
+        className={`w-full min-w-[620px] border-collapse text-sm sm:min-w-[720px] ${
+          cards ? "tabla-cards" : ""
+        }`}
+      >
+        {children}
+      </table>
     </div>
   );
 }
@@ -187,7 +207,7 @@ export function Th({
 }) {
   return (
     <th
-      className={`border-b border-borde px-4 py-3 text-xs font-medium uppercase tracking-wide text-tenue ${alineacion[align]} ${className}`}
+      className={`border-b border-borde px-3 py-2.5 text-xs font-medium uppercase tracking-wide whitespace-nowrap text-tenue sm:px-4 sm:py-3 ${alineacion[align]} ${className}`}
     >
       {children}
     </th>
@@ -198,14 +218,24 @@ export function Td({
   children,
   align = "left",
   className = "",
+  label,
+  titulo = false,
 }: {
   children?: ReactNode;
   align?: Alineacion;
   className?: string;
+  /** Nombre de la columna, que se muestra al lado del dato en modo tarjeta. */
+  label?: string;
+  /** Marca la celda que hace de encabezado de la tarjeta en el teléfono. */
+  titulo?: boolean;
 }) {
   return (
     <td
-      className={`border-b border-borde px-4 py-3 align-middle ${alineacion[align]} ${className}`}
+      data-label={label}
+      data-titulo={titulo ? "" : undefined}
+      className={`border-b border-borde px-3 py-2.5 align-middle sm:px-4 sm:py-3 ${
+        titulo ? "min-w-[150px]" : ""
+      } ${alineacion[align]} ${className}`}
     >
       {children}
     </td>
